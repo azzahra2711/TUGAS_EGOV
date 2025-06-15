@@ -41,14 +41,9 @@ Route::middleware('auth')->group(function () {
 
     // Route for 'Kendaraan' (Vehicles) and 'Kamar VIP' (VIP Rooms) - goes directly to order summary/payment
     // This now acts as the "Konfirmasi Pembayaran" page
-    Route::get('/detail-pemesanan', [BookingController::class, 'showOrderDetail'])->name('order.detail');
-
-    // New route for showing payment methods
+    Route::post('/detail-pemesanan', [BookingController::class, 'showOrderDetail'])->name('order.detail');
     Route::post('/pilih-metode-pembayaran', [BookingController::class, 'showPaymentMethods'])->name('show.payment.methods');
-
-    // Route for processing the payment (POST request)
     Route::post('/process-payment', [BookingController::class, 'processPayment'])->name('process.payment');
-
-    // Route for booking success page
     Route::get('/booking-success/{booking_id}', [BookingController::class, 'bookingSuccess'])->name('booking.success');
+
 });

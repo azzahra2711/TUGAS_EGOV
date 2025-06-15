@@ -247,50 +247,7 @@
 
             <hr>
 
-            @if ($ticketType === 'Penumpang')
-                <h3>DATA PENUMPANG</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Nama</th>
-                            <th>Kursi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($selectedSeatNumbers as $index => $seatNumber)
-                            <tr>
-                                <td>{{ $index + 1 }}</td>
-                                {{-- Anda perlu mengimplementasikan cara untuk mendapatkan nama penumpang di sini.
-                                Contohnya, jika Anda memiliki kolom 'passenger_name' di tabel booking_details
-                                atau menyimpannya di sessions/JSON pada Booking model.
-                                Untuk sementara, ini adalah placeholder. --}}
-                                <td>Penumpang {{ $index + 1 }}</td>
-                                <td>{{ $seatNumber }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="3">Tidak ada penumpang atau kursi yang dipilih.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-                <hr>
-            @elseif ($ticketType === 'Kamar VIP')
-                <h3>DETAIL KAMAR VIP</h3>
-                @foreach ($selectedFares as $fare)
-                    <p>{{ $fare->selected_quantity }} x {{ $fare->seatType->name }}</p>
-                    <div class="vip-room-details-form">
-                        <h5>Detail Kamar VIP {{ $loop->iteration }}</h5>
-                        {{-- Formulir ini akan dikirimkan ke showPaymentMethods --}}
-                        <label for="vip_preference_{{ $loop->index }}">Preferensi Kamar (opsional):</label>
-                        <input type="text" id="vip_preference_{{ $loop->index }}"
-                            name="vip_room_details[{{ $loop->index }}][preference]" form="paymentMethodForm"> {{-- Link to the
-                        form below --}}
-                    </div>
-                @endforeach
-                <hr>
-            @endif
+
 
             <div class="harga">
                 <p>Harga Tiket
@@ -312,15 +269,12 @@
             {{-- Form untuk melanjutkan ke pemilihan metode pembayaran --}}
             <form action="{{ route('show.payment.methods') }}" method="POST" id="paymentMethodForm">
                 @csrf
+                {{-- Hidden inputs to pass data to the next step --}}
                 <input type="hidden" name="schedule_id" value="{{ $schedule->id }}">
                 <input type="hidden" name="quantities"
                     value="{{ json_encode($selectedFares->pluck('selected_quantity', 'id')) }}">
-                <input type="hidden" name="ticket_type" value="{{ $ticketType }}">
-                <input type="hidden" name="selected_seat_numbers" value="{{ json_encode($selectedSeatNumbers) }}">
-                {{-- Jika ada details tambahan seperti VIP room, perlu dikirim juga --}}
-                @if ($ticketType === 'Kamar VIP')
-                    {{-- The vip_room_details inputs are part of this form via the 'form' attribute --}}
-                @endif
+                <input type="hidden" name="selected_seat_numbers" value="{{ json_encode($selectedSeatNumbersArray) }}">
+                {{-- vip_room_details inputs are linked by 'form="paymentMethodForm"' --}}
                 <button type="submit" class="btn-lanjut" id="continueToPaymentBtn" disabled>Lanjutkan
                     Pembayaran</button>
             </form>

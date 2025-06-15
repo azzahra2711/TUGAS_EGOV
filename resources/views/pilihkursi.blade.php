@@ -42,7 +42,7 @@
             <p>Penumpang</p> {{-- Asumsi ini selalu untuk penumpang --}}
         </div>
 
-        <form action="{{ route('process.payment') }}" method="POST" id="bookingForm">
+        <form action="{{ route('order.detail') }}" method="POST" id="bookingForm">
             @csrf
             <input type="hidden" name="schedule_id" value="{{ $schedule->id }}">
             <input type="hidden" name="ticket_type" value="Penumpang">
