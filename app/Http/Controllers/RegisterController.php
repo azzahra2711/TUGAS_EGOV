@@ -9,17 +9,11 @@ use Illuminate\Support\Facades\Session; // Import Session facade
 
 class RegisterController extends Controller
 {
-    /**
-     * Menampilkan halaman registrasi.
-     */
     public function create()
     {
         return view('register');
     }
 
-    /**
-     * Menyimpan data registrasi user baru.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -28,7 +22,7 @@ class RegisterController extends Controller
             'email' => 'required|email|unique:users,email',
             'alamat' => 'nullable|string|max:255',
             'kota' => 'nullable|string|max:255',
-            'password' => 'required|string|min:6|confirmed', // 'confirmed' akan mencari password_confirmation
+            'password' => 'required|string|min:6|confirmed', 
         ]);
 
         User::create([
@@ -40,7 +34,6 @@ class RegisterController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        // Menggunakan session flash untuk pesan sukses
         Session::flash('success', 'Registrasi berhasil. Silakan login!');
         return redirect('/login');
     }

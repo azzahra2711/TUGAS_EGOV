@@ -16,19 +16,14 @@ class HomepageController extends Controller
      */
     public function index(Request $request)
     {
-        // Ambil data kota dan jenis tiket dari database untuk dropdown filter
         $cities = City::orderBy('name')->get();
         $ticketTypes = Ticket::orderBy('name')->get();
 
-        // Query dasar untuk jadwal dengan eager loading relasi yang dibutuhkan
         $query = Schedule::with(['ferry', 'originCity', 'destinationCity', 'fares.seatType']);
 
-        // Logika filtering untuk jenis-tiket
         if ($request->has('jenis-tiket') && $request->input('jenis-tiket') != '') {
             $selectedTicketTypeName = $request->input('jenis-tiket');
 
-            // Apply filter based on the selected ticket type to the schedule's fares.
-            // This ensures only schedules that offer the selected ticket type are considered.
             $query->whereHas('fares', function ($fareQuery) use ($selectedTicketTypeName) {
                 $fareQuery->whereHas('seatType', function ($seatTypeQuery) use ($selectedTicketTypeName) {
                     if ($selectedTicketTypeName === 'Penumpang') {
@@ -42,7 +37,6 @@ class HomepageController extends Controller
             });
         }
 
-        // Logika filtering untuk kota-asal
         if ($request->has('kota-asal') && $request->input('kota-asal') != '') {
             $originCityValue = $request->input('kota-asal');
             $parts = explode('/', $originCityValue);
@@ -56,7 +50,6 @@ class HomepageController extends Controller
             }
         }
 
-        // Logika filtering untuk kota-tujuan
         if ($request->has('kota-tujuan') && $request->input('kota-tujuan') != '') {
             $destinationCityValue = $request->input('kota-tujuan');
             $parts = explode('/', $destinationCityValue);
@@ -70,21 +63,17 @@ class HomepageController extends Controller
             }
         }
 
-        // Logika filtering untuk tanggal-berangkat
         if ($request->has('tanggal-berangkat') && $request->input('tanggal-berangkat') != '') {
             $departureDate = $request->input('tanggal-berangkat');
             $query->whereDate('departure_date', $departureDate);
         } else {
-            // Default to today and 10 days ahead if no date filter is applied
             $today = Carbon::now()->startOfDay();
             $tenDaysLater = Carbon::now()->addDays(10)->endOfDay();
             $query->whereBetween('departure_date', [$today, $tenDaysLater]);
         }
-
-        // Ambil hasil jadwal
         $schedules = $query->distinct()->orderBy('departure_date')->orderBy('departure_time')->get();
 
-        // Pass the request object to the view so it can be used for conditional display of fares
+
         return view('homepage', compact('schedules', 'cities', 'ticketTypes', 'request'));
     }
 }

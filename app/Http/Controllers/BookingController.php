@@ -15,10 +15,6 @@ use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
-    /**
-     * Display the seat selection page for 'Penumpang' tickets.
-     * This method will receive schedule_id and quantities from the homepage.
-     */
     public function selectSeats(Request $request)
     {
         $request->validate([
@@ -31,35 +27,23 @@ class BookingController extends Controller
 
         $schedule = Schedule::with(['ferry', 'originCity', 'destinationCity', 'fares.seatType'])->findOrFail($scheduleId);
 
-        // Filter fares yang dipilih dan pastikan hanya 'Dewasa'
         $selectedFares = $schedule->fares->filter(function ($fare) use ($quantities) {
             return isset($quantities[$fare->id]) &&
-                   $fare->seatType && // Tambahkan pengecekan null untuk seatType
+                   $fare->seatType && 
                    $fare->seatType->name === 'Dewasa';
         })->map(function ($fare) use ($quantities) {
             $fare->selected_quantity = $quantities[$fare->id];
             return $fare;
         });
 
-        // Hitung total tiket 'Dewasa' yang dibutuhkan dari input form
         $totalTicketsNeeded = $selectedFares->sum('selected_quantity');
-
-        // --- MENGAMBIL DATA KURSI DARI TABEL 'seats' ---
         $allSeatsForSchedule = Seat::where('schedule_id', $scheduleId)->get();
-
-        // Mengambil total jumlah kursi yang ada di tabel 'seats' untuk jadwal ini
         $ferryTotalSeats = $allSeatsForSchedule->count();
-
-        // Mengambil nomor kursi yang tidak tersedia (is_available = 0)
         $unavailableSeatNumbers = $allSeatsForSchedule->where('is_available', 0)->pluck('seat_number')->toArray();
 
         return view('pilihkursi', compact('schedule', 'selectedFares', 'totalTicketsNeeded', 'ferryTotalSeats', 'unavailableSeatNumbers'));
     }
 
-    /**
-     * Display the order detail page (Konfirmasi Pembayaran).
-     * This method receives data from pilihkursi.blade.php or homepage.
-     */
     public function showOrderDetail(Request $request)
     {
         $validated = $request->validate([
@@ -71,14 +55,12 @@ class BookingController extends Controller
             'vip_room_details.*.preference' => 'nullable|string|max:255',
         ]);
 
-        // Decode quantities and selected_seat_numbers
         $quantitiesArray = json_decode($validated['quantities'], true);
         $selectedSeatNumbersArray = json_decode($validated['selected_seat_numbers'] ?? '[]', true);
 
         $schedule = Schedule::with(['ferry', 'originCity', 'destinationCity', 'fares.seatType'])->findOrFail($validated['schedule_id']);
 
         $selectedFares = $schedule->fares->filter(function ($fare) use ($quantitiesArray, $validated) {
-            // Check if fare ID exists in quantities and if it matches ticket_type
             if (!isset($quantitiesArray[$fare->id]) || $quantitiesArray[$fare->id] <= 0 || !$fare->seatType) {
                 return false;
             }
@@ -88,7 +70,7 @@ class BookingController extends Controller
             } elseif ($validated['ticket_type'] === 'Kamar VIP') {
                 return Str::contains(Str::lower($fare->seatType->name), 'vip');
             } elseif ($validated['ticket_type'] === 'Penumpang') {
-                return $fare->seatType->name === 'Dewasa'; // Assuming 'Dewasa' is the passenger type
+                return $fare->seatType->name === 'Dewasa'; 
             }
             return false;
         })->map(function ($fare) use ($quantitiesArray) {
@@ -105,7 +87,6 @@ class BookingController extends Controller
             $totalAmount += $fare->price * $fare->selected_quantity;
         }
 
-        // Store all necessary data in session for the next steps
         session([
             'booking.schedule_id' => $validated['schedule_id'],
             'booking.ticket_type' => $validated['ticket_type'],
@@ -128,53 +109,44 @@ class BookingController extends Controller
         ));
     }
 
-
-    /**
-     * Display the payment method selection page.
-     * This method retrieves data from session.
-     */
     public function showPaymentMethods(Request $request)
     {
-        $bookingData = session('booking');
+        $scheduleId = $request->input('schedule_id');
+        $quantities = json_decode($request->input('quantities'), true);
+        $selectedSeatNumbers = json_decode($request->input('selected_seat_numbers'), true);
 
-        if (!$bookingData) {
-            return redirect()->route('homepage')->with('error', 'Data pemesanan tidak ditemukan. Silakan mulai ulang pemesanan.');
+        $schedule = Schedule::with(['originCity', 'destinationCity'])->findOrFail($scheduleId);
+
+        $selectedFares = Fare::whereIn('id', array_keys($quantities))->get();
+        foreach ($selectedFares as $fare) {
+            $fare->selected_quantity = $quantities[$fare->id];
         }
 
-        // Validate payment_method if it's coming from a form submission
-        // Otherwise, it's just displaying the options
-        if ($request->isMethod('post')) {
-            $request->validate([
-                'payment_method' => 'required|string'
-            ]);
-            // Store selected payment method in session
-            session(['payment_method_selection' => $request->input('payment_method')]);
-        }
+        $totalAmount = $selectedFares->sum(function ($fare) {
+            return $fare->price * $fare->selected_quantity;
+        });
 
+        // Simpan ke session untuk tahap pembayaran
+        session([
+            'booking' => [
+                'schedule_id' => $scheduleId,
+                'ticket_type' => 'Penumpang', // default, sesuaikan jika ada tipe lain
+                'quantities' => json_encode($quantities),
+                'selected_seat_numbers' => json_encode($selectedSeatNumbers),
+                'total_amount' => $totalAmount,
+            ]
+        ]);
 
-        // Re-fetch necessary data for the payment method selection view
-        $scheduleId = $bookingData['schedule_id'];
-        $quantities = $bookingData['quantities']; // This is a JSON string
-        $ticketType = $bookingData['ticket_type'];
-        $selectedSeatNumbers = $bookingData['selected_seat_numbers']; // This is a JSON string
-        $vipRoomDetails = $bookingData['vip_room_details'] ?? [];
-        $totalAmount = $bookingData['total_amount']; // Retrieve from session
-
-        return view('payment_method_selection', compact(
-            'scheduleId',
-            'quantities',
-            'ticketType',
-            'selectedSeatNumbers',
-            'vipRoomDetails',
-            'totalAmount'
-        ));
+        return view('payment_method_selection', [
+            'schedule' => $schedule,
+            'selectedFares' => $selectedFares,
+            'selectedSeatNumbersArray' => $selectedSeatNumbers,
+            'totalAmount' => $totalAmount,
+            'userName' => Auth::user()->name ?? 'Pengguna',
+            'userEmail' => Auth::user()->email ?? 'pengguna@example.com',
+        ]);
     }
 
-
-    /**
-     * Process the payment for a booking.
-     * This method retrieves data from session and creates the booking.
-     */
     public function processPayment(Request $request)
     {
         $data = session('booking');
@@ -183,80 +155,56 @@ class BookingController extends Controller
             return redirect()->route('homepage')->with('error', 'Data pemesanan tidak ditemukan. Silakan mulai ulang pemesanan.');
         }
 
-        // Validate that essential data exists from session
-        if (!isset($data['schedule_id'], $data['ticket_type'], $data['quantities'], $data['payment_method'], $data['total_amount'])) {
-            return redirect()->back()->with('error', 'Data pemesanan tidak lengkap. Harap coba lagi.');
+        if (!isset($data['schedule_id'], $data['ticket_type'], $data['quantities'], $data['total_amount'])) {
+            return redirect()->back()->with('error', 'Data pemesanan tidak lengkap.');
         }
 
         $scheduleId = $data['schedule_id'];
-        $quantities = json_decode($data['quantities'], true); // Decode for use
+        $quantities = json_decode($data['quantities'], true);
         $ticketType = $data['ticket_type'];
-        $selectedSeatNumbers = json_decode($data['selected_seat_numbers'] ?? '[]', true); // Decode for use
-        $vipRoomDetails = $data['vip_room_details'] ?? [];
-        $totalAmount = $data['total_amount']; // Use total amount from session
+        $selectedSeatNumbers = json_decode($data['selected_seat_numbers'] ?? '[]', true);
+        $totalAmount = $data['total_amount'];
+        $paymentMethod = $request->input('payment_method') ?? 'transfer'; // asumsi default
 
         DB::beginTransaction();
         try {
-            // Re-check seat availability just before final booking for 'Penumpang'
             if ($ticketType === 'Penumpang') {
-                $currentUnavailableSeatNumbers = Seat::where('schedule_id', $scheduleId)
-                                                    ->where('is_available', 0)
-                                                    ->pluck('seat_number')
-                                                    ->toArray();
-
+                $unavailable = Seat::where('schedule_id', $scheduleId)
+                                   ->where('is_available', 0)
+                                   ->pluck('seat_number')->toArray();
                 foreach ($selectedSeatNumbers as $seatNumber) {
-                    if (in_array($seatNumber, $currentUnavailableSeatNumbers)) {
-                        throw new \Exception("Kursi nomor " . $seatNumber . " sudah tidak tersedia. Silakan pilih kursi lain.");
+                    if (in_array($seatNumber, $unavailable)) {
+                        throw new \Exception("Kursi nomor $seatNumber tidak tersedia.");
                     }
                 }
             }
 
-            // Create main booking record
             $booking = Booking::create([
                 'user_id' => Auth::id(),
                 'schedule_id' => $scheduleId,
-                'total_amount' => $totalAmount, // Use the pre-calculated total amount
+                'total_amount' => $totalAmount,
                 'booking_date' => Carbon::now(),
-                'status' => 'pending', // Set to pending initially, then completed on success
-                'payment_method' => $data['payment_method'], // Store payment method
-                'selected_seat_numbers_json' => ($ticketType === 'Penumpang' ? json_encode($selectedSeatNumbers) : null),
-                // Assuming payment_token is dummy from payment_method_selection.blade.php
-                // In a real app, this would come from the payment gateway's response
-                // 'payment_token' => 'dummy_token_123',
+                'status' => 'completed',
+                'payment_method' => $paymentMethod,
+                'selected_seat_numbers_json' => json_encode($selectedSeatNumbers),
             ]);
 
-            // Handle additional details based on ticket type
             if ($ticketType === 'Penumpang') {
-                // Update seat availability in 'seats' table
                 Seat::where('schedule_id', $scheduleId)
                     ->whereIn('seat_number', $selectedSeatNumbers)
                     ->update(['is_available' => 0]);
-
-                // *** REMINDER: For storing specific passenger names and seats,
-                // you would create entries in a booking_details table here.
-                // E.g., $booking->bookingDetails()->create([...]);
-            } elseif ($ticketType === 'Kamar VIP') {
-                foreach ($vipRoomDetails as $detail) {
-                    // $booking->vipRooms()->create($detail); // Adjust with your model if exists
-                }
             }
-
-            // Simulate successful payment (replace with actual payment gateway callback)
-            $booking->status = 'completed';
-            $booking->save();
 
             DB::commit();
 
-            session()->forget('booking'); // Clear session after successful booking
-
-            return redirect()->route('booking.success', ['booking_id' => $booking->id])->with('success', 'Pemesanan berhasil!');
-
+            session()->forget('booking');
+            return redirect()->route('booking.success', ['booking_id' => $booking->id])
+                             ->with('success', 'Pemesanan berhasil!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->back()->withInput($request->all())->with('error', 'Pemesanan gagal: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Pemesanan gagal: ' . $e->getMessage());
         }
     }
-
 
     public function bookingSuccess(Request $request)
     {
@@ -264,22 +212,12 @@ class BookingController extends Controller
             'schedule.ferry',
             'schedule.originCity',
             'schedule.destinationCity',
-            // 'bookingDetails.fare.seatType' // Load if you have BookingDetail and want to display item details
         ])->findOrFail($request->booking_id);
 
         $bookedSeatNumbersForDisplay = [];
-        // If you store selected_seat_numbers_json in the 'bookings' table:
         if ($booking->selected_seat_numbers_json) {
             $bookedSeatNumbersForDisplay = json_decode($booking->selected_seat_numbers_json, true);
         }
-        // If you use BookingDetail and store seat_number there:
-        // if ($booking->bookingDetails->isNotEmpty()) {
-        //     foreach ($booking->bookingDetails as $detail) {
-        //         if ($detail->seat_number) {
-        //             $bookedSeatNumbersForDisplay[] = $detail->seat_number;
-        //         }
-        //     }
-        // }
 
         return view('booking_success', compact('booking', 'bookedSeatNumbersForDisplay'));
     }

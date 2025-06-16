@@ -70,6 +70,21 @@ h2 {
   min-width: 180px;
 }
 
+.form-box form {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* jarak antar elemen */
+    flex-wrap: wrap; /* supaya tetap responsif di layar kecil */
+}
+
+.form-box select,
+.form-box input[type="date"],
+.form-box button {
+    padding: 8px;
+    font-size: 1em;
+}
+
+
 .cek-btn {
   padding: 0.7em 1.2em;
   font-size: 1em;
