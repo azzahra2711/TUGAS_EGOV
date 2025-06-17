@@ -23,7 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/homepage', [HomepageController::class, 'index'])->name('homepage');
     
     Route::get('/pilihkursi', [BookingController::class, 'selectSeats'])->name('select.seats');
-    Route::post('/detail-pemesanan', [BookingController::class, 'showOrderDetail'])->name('order.detail');
+    Route::get('/detail-pemesanan', [BookingController::class, 'showOrderDetail'])->name('order.detail');
     Route::post('/pilih-metode-pembayaran', [BookingController::class, 'showPaymentMethods'])->name('show.payment.methods');
     Route::post('/proses-pembayaran', [BookingController::class, 'processPayment'])->name('process.payment');
     Route::get('/pemesanan-berhasil/{booking_id}', [BookingController::class, 'bookingSuccess'])->name('booking.success');

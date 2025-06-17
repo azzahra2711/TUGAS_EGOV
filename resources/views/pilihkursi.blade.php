@@ -38,18 +38,22 @@
             <h3>DETAIL PERJALANAN</h3>
             <p><b>{{ $schedule->originCity->name }} ({{ $schedule->originCity->code }}) &rarr;
                     {{ $schedule->destinationCity->name }} ({{ $schedule->destinationCity->code }})</b></p>
-            <p>{{ \Carbon\Carbon::parse($schedule->departure_date)->locale('id')->isoFormat('dddd, D MMMM BCE') }}</p>
+            <p>{{ \Carbon\Carbon::parse($schedule->departure_date)->locale('id')->isoFormat('dddd, D MMMM YYYY') }}</p>
             <p>Penumpang</p> {{-- Asumsi ini selalu untuk penumpang --}}
         </div>
 
-        <form action="{{ route('order.detail') }}" method="POST" id="bookingForm">
+        <form action="{{ route('order.detail') }}" method="GET" id="bookingForm">
             @csrf
-
             <input type="hidden" name="schedule_id" value="{{ $schedule->id }}">
-            <input type="hidden" name="ticket_type" value="Penumpang">
+            <input type="hidden" name="ticket_type" value="Dewasa">
             <input type="hidden" name="quantities"
                 value="{{ json_encode($selectedFares->pluck('selected_quantity', 'id')) }}">
-            <input type="hidden" name="selected_seat_numbers" id="selectedSeatNumbersInput">
+            <input type="hidden" name="selected_seat_numbers" id="selectedSeatNumbersInput"> {{-- Untuk menyimpan nomor
+            kursi terpilih --}}
+            <input type="hidden" name="payment_method" value="Online Payment"> {{-- Default atau biarkan kosong jika ada
+            pilihan nanti --}}
+            <input type="hidden" name="payment_token" value="dummy_token_123"> {{-- Placeholder untuk token pembayaran
+            --}}
 
             <div class="kursi-section">
                 <h3>DATA KURSI</h3>
@@ -82,40 +86,49 @@
                 </div>
             </div>
 
-            <button type="submit" class="pesan-btn" id="pesanBtn" disabled style="opacity: 0.5;">Pesan</button>
+            <div class="total-summary">
+                Total Pembayaran: Rp. <span id="finalTotalAmount">
+                    @php
+                        $finalTotalAmount = 0;
+                        foreach ($selectedFares as $fare) {
+                            $finalTotalAmount += $fare->price * $fare->selected_quantity;
+                        }
+                        echo number_format($finalTotalAmount, 0, ',', '.');
+                    @endphp
+                </span>
+            </div>
+            <button type="button" class="pesan-btn" id="pesanBtn">Pesan</button>
         </form>
-
     </main>
 
-    <!-- Hanya bagian <script> yang diperbarui -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const seatGrid = document.getElementById('seatGrid');
             const pesanBtn = document.getElementById('pesanBtn');
             const requiredSeatsCountSpan = document.getElementById('requiredSeatsCount');
             const selectedSeatNumbersInput = document.getElementById('selectedSeatNumbersInput');
-            const bookingForm = document.getElementById('bookingForm');
 
             const totalSeatsToSelect = parseInt(requiredSeatsCountSpan.textContent);
             let selectedSeats = [];
 
-            // Data dari Blade (pastikan ini ada dan valid)
-            const ferryTotalSeats = {{ $ferryTotalSeats }};
-            const bookedSeatsArray = @json($unavailableSeatNumbers);
+            // Menggunakan variabel Blade yang dilewatkan dari controller
+            const ferryTotalSeats = {{ $ferryTotalSeats }}; // Dari BookingController
+            // const bookedSeatsArray = @json($unavailableSeatNumbers); // Dari BookingController, ini adalah kursi yang is_available = 0
+            const bookedSeatsArray = @json($unavailableSeatNumbers).map(Number);
 
+            // Render kursi secara dinamis
             function renderSeats() {
-                seatGrid.innerHTML = ''; // Kosongkan kursi sebelumnya
-
+                seatGrid.innerHTML = ''; // Bersihkan grid
                 for (let i = 1; i <= ferryTotalSeats; i++) {
                     const seatButton = document.createElement('button');
-                    seatButton.setAttribute('type', 'button'); // ✅ Tambahan ini untuk mencegah submit otomatis
+                    seatButton.setAttribute('type', 'button'); // <- Tambahkan ini
                     seatButton.classList.add('seat');
                     seatButton.textContent = i;
                     seatButton.dataset.seatNumber = i;
 
-                    if (bookedSeatsArray.includes(i)) {
-                        seatButton.classList.add('booked', 'sold');
-                        seatButton.disabled = true; // Nonaktifkan
+                    if (bookedSeatsArray.includes(i)) { // Memeriksa jika nomor kursi ada di daftar yang tidak tersedia
+                        seatButton.classList.add('booked');
+                        seatButton.setAttribute('disabled', 'true'); // Nonaktifkan kursi terjual
                     } else {
                         seatButton.classList.add('available');
                     }
@@ -128,56 +141,62 @@
                 }
             }
 
-            // Event listener klik kursi
+            // Handler klik kursi
             seatGrid.addEventListener('click', (event) => {
                 const clickedSeat = event.target.closest('.seat');
                 if (!clickedSeat || clickedSeat.classList.contains('booked')) {
-                    alert('Kursi ini sudah terjual.');
-                    return;
+                    return; // Abaikan klik jika bukan kursi atau kursi sudah terjual
                 }
 
                 const seatNumber = parseInt(clickedSeat.dataset.seatNumber);
 
                 if (clickedSeat.classList.contains('selected')) {
+                    // Batalkan pemilihan
                     clickedSeat.classList.remove('selected');
                     selectedSeats = selectedSeats.filter(s => s !== seatNumber);
                 } else {
+                    // Pilih kursi
                     if (selectedSeats.length < totalSeatsToSelect) {
                         clickedSeat.classList.add('selected');
                         selectedSeats.push(seatNumber);
-                        selectedSeats.sort((a, b) => a - b);
+                        selectedSeats.sort((a, b) => a - b); // Urutkan nomor kursi
                     } else {
-                        alert(`Anda hanya dapat memilih ${totalSeatsToSelect} kursi.`);
+                        alert(`Anda hanya bisa memilih ${totalSeatsToSelect} kursi.`);
                     }
                 }
 
+                // Update input tersembunyi
                 selectedSeatNumbersInput.value = JSON.stringify(selectedSeats);
 
+                // Aktifkan/nonaktifkan tombol pesan
                 if (selectedSeats.length === totalSeatsToSelect) {
-                    pesanBtn.disabled = false;
+                    pesanBtn.style.pointerEvents = 'auto';
                     pesanBtn.style.opacity = '1';
                 } else {
-                    pesanBtn.disabled = true;
+                    pesanBtn.style.pointerEvents = 'none';
                     pesanBtn.style.opacity = '0.5';
                 }
             });
 
-            // Validasi saat form disubmit
-            bookingForm.addEventListener('submit', function (e) {
-                if (selectedSeats.length !== totalSeatsToSelect) {
-                    e.preventDefault();
-                    alert(`Harap pilih ${totalSeatsToSelect} kursi terlebih dahulu sebelum melanjutkan.`);
-                }
-            });
-
-            // Render awal
+            // Inisialisasi tampilan
             renderSeats();
-            pesanBtn.disabled = true;
+
+            // Nonaktifkan tombol pesan di awal
+            pesanBtn.style.pointerEvents = 'none';
             pesanBtn.style.opacity = '0.5';
+
+            // Kirim form saat tombol "Pesan" ditekan dan jumlah kursi sudah sesuai
+pesanBtn.addEventListener('click', () => {
+    if (selectedSeats.length === totalSeatsToSelect) {
+        document.getElementById('bookingForm').submit();
+        
+    } else {
+        alert(`Silakan pilih ${totalSeatsToSelect} kursi terlebih dahulu.`);
+    }
+});
+
         });
     </script>
-
-
 </body>
 
 </html>

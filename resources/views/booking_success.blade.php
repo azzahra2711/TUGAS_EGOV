@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pilih Kursi</title>
-    <link rel="stylesheet" href="{{ asset('css/Konfirmasipembayaran.css') }}">
+    <title>Pemesanan Berhasil!</title>
+    <link rel="stylesheet" href="{{ asset('css/Struk.css') }}">
 </head>
 
 <body>
@@ -26,23 +26,20 @@
             </span>
         </div>
     </header>
-
     <main>
         <section class="card">
             <div class="card-header">
-                <h2 style="text-align: center;">DETAIL PESANAN</h2>
+                <h2>DETAIL PESANAN</h2>
                 <img src="{{ asset('images/new-logo.png.png') }}" alt="Logo Ferry" class="logo-kanan">
             </div>
 
             <hr>
 
-            <p><strong>{{ $booking->schedule->originCity->name }} ({{ $booking->schedule->originCity->code }}) ➝
+            <p><strong>{{ $booking->schedule->originCity->name }} ({{ $booking->schedule->originCity->code }}) &rarr;
                     {{ $booking->schedule->destinationCity->name }}
                     ({{ $booking->schedule->destinationCity->code }})</strong></p>
-            <p>
-                {{ \Carbon\Carbon::parse($booking->schedule->departure_date)->locale('id')->isoFormat('dddd, D MMMM YYYY') }},
-                Pukul {{ \Carbon\Carbon::parse($booking->schedule->departure_time)->format('H:i') }} WIB
-            </p>
+            <p>{{ \Carbon\Carbon::parse($booking->schedule->departure_date)->locale('id')->isoFormat('dddd, D MMMM YYYY') }}
+                Pukul {{ \Carbon\Carbon::parse($booking->schedule->departure_time)->format('H:i') }} WIB</p>
 
             <hr>
 
@@ -52,13 +49,13 @@
                     <p><strong>Nama Pemesan</strong><br>👤 {{ $booking->user->name ?? 'N/A' }}</p>
                 </div>
                 <div class="info-right">
-                    <p>📞 0821xxxx<br>✉️ {{ $booking->user->email ?? 'N/A' }}</p>
+                    <p>📞 0821xxxx <br>✉️ {{ $booking->user->email ?? 'N/A' }}</p>
                 </div>
             </div>
 
             <hr>
 
-            @if (!empty($bookedSeatNumbersForDisplay))
+            @if ($bookedSeatNumbersForDisplay && count($bookedSeatNumbersForDisplay) > 0)
                 <h3>DATA PENUMPANG</h3>
                 <table>
                     <thead>
@@ -72,6 +69,7 @@
                         @foreach ($bookedSeatNumbersForDisplay as $index => $seatNumber)
                             <tr>
                                 <td>{{ $index + 1 }}</td>
+                                {{-- Again, passenger name needs to come from your data storage --}}
                                 <td>Penumpang {{ $index + 1 }}</td>
                                 <td>{{ $seatNumber }}</td>
                             </tr>
@@ -81,18 +79,40 @@
                 <hr>
             @endif
 
+            {{-- If you have booking details with ticket types (e.g., VIP rooms), you'd loop them here --}}
+            {{-- Example if using bookingDetails:
+            @if ($booking->bookingDetails->isNotEmpty())
+            <h3>DETAIL TIKET</h3>
+            <ul>
+                @foreach ($booking->bookingDetails as $item)
+                <li>- {{ $item->quantity }} x {{ $item->fare->seatType->name ?? 'N/A' }} (Rp.
+                    {{ number_format($item->price, 0, ',', '.') }} per tiket)
+                    @if ($item->seat_number)
+                    (Kursi: {{ $item->seat_number }})
+                    @endif
+                    @if ($item->vip_room_preference) // Example if you add this column
+                    (Preferensi: {{ $item->vip_room_preference }})
+                    @endif
+                </li>
+                @endforeach
+            </ul>
+            <hr>
+            @endif
+            --}}
+
             <div class="harga">
                 <p>Harga Tiket <span>Rp. {{ number_format($booking->total_amount, 0, ',', '.') }}</span></p>
-                <p>Jumlah Tiket <span>X 1</span></p>
+                {{-- This 'Jumlah Penumpang' or 'Jumlah Tiket' needs to be calculated based on selected fares --}}
+                <p>Jumlah Tiket <span>X
+                        {{ count($bookedSeatNumbersForDisplay) > 0 ? count($bookedSeatNumbersForDisplay) : 'N/A' }}</span>
+                </p>
                 <p class="total">Total Harga <span>Rp. {{ number_format($booking->total_amount, 0, ',', '.') }}</span>
                 </p>
             </div>
-
-            <div style="display: flex; justify-content: center;">
-                <a class="btn-lanjut" href="{{ route('homepage') }}">Kembali ke halaman utama</a>
-            </div>
+            <a class="btn-lanjut" href="{{ route('homepage') }}">Kembali ke halaman utama</a>
         </section>
     </main>
 </body>
 
 </html>
+
