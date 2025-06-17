@@ -18,7 +18,7 @@
         </div>
         <nav class="nav-menu">
             <ul>
-                <li><a href="{{ url('landingpage') }}">Beranda</a></li>
+                <li><a href="{{ url('/') }}">Beranda</a></li>
                 <li><a href="#">Info</a></li> {{-- Sesuaikan link ini jika ada halaman info --}}
                 <li><a href="#">Jadwal</a></li> {{-- Sesuaikan link ini jika ada halaman jadwal --}}
                 <li><a href="{{ url('login') }}">Login</a></li>
