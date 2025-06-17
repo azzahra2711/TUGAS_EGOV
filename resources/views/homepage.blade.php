@@ -122,12 +122,23 @@
                                             <td>{{ $fare->seatType->name ?? 'N/A' }}</td>
                                             <td>Rp. {{ number_format($fare->price, 0, ',', '.') }}</td>
                                             <td>
-                                                <button type="button" class="pesan-btn" data-schedule-id="{{ $schedule->id }}"
-                                                    data-fare-id="{{ $fare->id }}"
-                                                    data-ticket-type-name="{{ $request->input('jenis-tiket') }}"
-                                                    data-seat-type-name="{{ $fare->seatType->name ?? 'N/A' }}">
-                                                    Pesan
-                                                </button>
+                                                @php
+    $mainType = 'Penumpang';
+    if (Str::contains(Str::lower($fare->seatType->name), 'vip')) {
+        $mainType = 'Kamar VIP';
+    } elseif (Str::contains(Str::lower($fare->seatType->name), 'kendaraan')) {
+        $mainType = 'Kendaraan';
+    }
+@endphp
+
+<button type="button" class="pesan-btn"
+    data-schedule-id="{{ $schedule->id }}"
+    data-fare-id="{{ $fare->id }}"
+    data-ticket-type-name="{{ $mainType }}"
+    data-seat-type-name="{{ $fare->seatType->name ?? 'N/A' }}">
+    Pesan
+</button>
+
                                             </td>
                                         </tr>
                                     @endforeach
