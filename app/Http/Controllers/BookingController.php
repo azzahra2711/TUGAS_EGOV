@@ -169,16 +169,15 @@ class BookingController extends Controller
         'quantities' => 'required|json',
         'ticket_type' => 'required|string',
         'payment_method' => 'required|string',
-        // 'payment_token' => 'required|string', // Bisa dummy/token gateway
         'selected_seat_numbers' => 'required_if:ticket_type,Dewasa|json',
-        // 'vip_room_details' => 'array|nullable',
-        // 'vip_room_details.*.preference' => 'nullable|string|max:255',
+        'passenger_names' => 'nullable|array',
     ]);
 
     $scheduleId = $request->input('schedule_id');
     $quantities = json_decode($request->input('quantities'), true);
     $ticketType = $request->input('ticket_type');
     $selectedSeatNumbers = json_decode($request->input('selected_seat_numbers', '[]'), true);
+    $passengerNames = $request->input('passenger_names', []); // Ambil array nama penumpang
 
     DB::beginTransaction();
 
@@ -208,49 +207,85 @@ class BookingController extends Controller
         }
     }
 
+    // Bangun ringkasan penumpang & lainnya
+    $summary = [];
+
+    foreach ($quantities as $fareId => $quantity) {
+        Log::info("Looping fare_id: $fareId, quantity: $quantity");
+    
+        $fare = $schedule->fares->firstWhere('id', $fareId);
+    
+        if (!$fare) {
+            Log::warning("FARE ID $fareId tidak ditemukan di schedule.");
+            continue;
+        }
+    
+        if (!$fare->seatType) {
+            Log::warning("FARE ID $fareId tidak punya seatType.");
+            continue;
+        }
+    
+        $seatTypeName = $fare->seatType->name;
+    
+        Log::info("Seat type ditemukan: $seatTypeName");
+    
+        if ($seatTypeName === 'Dewasa') {
+            for ($i = 0; $i < $quantity; $i++) {
+                $summary[] = [
+                    'type' => 'Dewasa',
+                    'name' => $passengerNames[$i] ?? 'Penumpang ' . ($i + 1),
+                    'seat_number' => $selectedSeatNumbers[$i] ?? '-',
+                    'quantity' => 1,
+                    'price_per_unit' => $fare->price,
+                ];
+            }
+        } elseif ($seatTypeName === 'VIP') {
+            $summary[] = [
+                'type' => 'Kamar VIP',
+                'seat_type' => $seatTypeName,
+                'quantity' => $quantity,
+                'price_per_unit' => $fare->price,
+            ];
+        } elseif (str_contains(strtolower($seatTypeName), 'kendaraan')) {
+            $summary[] = [
+                'type' => 'Kendaraan',
+                'seat_type' => $seatTypeName,
+                'quantity' => $quantity,
+                'price_per_unit' => $fare->price,
+            ];
+        }        
+    }
+    
+    
+
+    // Simpan booking
     $booking = Booking::create([
         'user_id' => Auth::id(),
         'schedule_id' => $scheduleId,
-        'total_amount' => $totalAmount,
         'booking_date' => now(),
-        'status' => 'pending',
-        'selected_seat_numbers_json' => ($ticketType === 'Dewasa' ? json_encode($selectedSeatNumbers) : null),
+        'total_amount' => $totalAmount,
+        'status' => 'Confirmed',
+        'selected_seat_numbers_json' => $summary,
     ]);
-
-    if (!$booking) {
-        Log::error('Booking gagal disimpan ke database.');
-    } else {
-        Log::info('Booking berhasil disimpan', $booking->toArray());
-    }
 
     if ($ticketType === 'Dewasa') {
         Seat::where('schedule_id', $scheduleId)
             ->whereIn('seat_number', $selectedSeatNumbers)
             ->update(['is_available' => 0]);
-
-        // Placeholder untuk future booking detail
-        // foreach ($selectedSeatNumbers as $index => $seatNumber) {
-        //     $booking->bookingDetails()->create([
-        //         'fare_id' => ..., 
-        //         'seat_number' => $seatNumber,
-        //         'passenger_name' => 'Penumpang ' . ($index + 1),
-        //     ]);
-        // }
-    } elseif ($ticketType === 'Kamar VIP') {
-        $vipRoomDetails = $request->input('vip_room_details', []);
-        foreach ($vipRoomDetails as $detail) {
-            // $booking->vipRooms()->create($detail);
-        }
     }
 
     $booking->status = 'completed';
     $booking->save();
-    
-DB::commit();
+
+    DB::commit();
+
+    Log::info('Summary booking:', $summary);
+
 
     return redirect()->route('booking.success', ['booking_id' => $booking->id])
         ->with('success', 'Pemesanan berhasil!');
 }
+
 
 
     public function bookingSuccess(Request $request)
@@ -259,14 +294,19 @@ DB::commit();
             'schedule.ferry',
             'schedule.originCity',
             'schedule.destinationCity',
+            'bookingDetails.seatType',
+        'bookingDetails.seat'
             // 'bookingDetails.fare.seatType' // Muat jika Anda memiliki BookingDetail dan ingin menampilkan detail per item tiket
         ])->findOrFail($request->booking_id);
 
         $bookedSeatNumbersForDisplay = [];
         // Jika Anda menyimpan selected_seat_numbers_json di tabel 'bookings':
         if ($booking->selected_seat_numbers_json) {
-            $bookedSeatNumbersForDisplay = json_decode($booking->selected_seat_numbers_json, true);
+            $bookedSeatNumbersForDisplay = $booking->selected_seat_numbers_json ?? [];
         }
+        $vip = collect($booking->selected_seat_numbers_json)->filter(fn($item) => $item['type'] === 'Kamar VIP')->values();
+        $kendaraan = collect($booking->selected_seat_numbers_json)->filter(fn($item) => $item['type'] === 'Kendaraan')->values();
+
         // Jika Anda menggunakan BookingDetail dan menyimpan seat_number di sana:
         // if ($booking->bookingDetails->isNotEmpty()) {
         //     foreach ($booking->bookingDetails as $detail) {
@@ -276,6 +316,6 @@ DB::commit();
         //     }
         // }
 
-        return view('booking_success', compact('booking', 'bookedSeatNumbersForDisplay'));
+        return view('booking_success', compact('booking', 'bookedSeatNumbersForDisplay', 'vip', 'kendaraan'));
     }
 }

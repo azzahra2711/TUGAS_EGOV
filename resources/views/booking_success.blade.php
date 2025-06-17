@@ -54,8 +54,92 @@
             </div>
 
             <hr>
+            @if ($booking->selected_seat_numbers_json && count($booking->selected_seat_numbers_json) > 0)
+    @php
+        $data = $booking->selected_seat_numbers_json;
+        $penumpang = collect($data)->where('type', 'Dewasa')->values();
+        $vip = collect($data)->where('type', 'Kamar VIP')->values();
+        $kendaraan = collect($data)->where('type', 'Kendaraan')->values();
+    @endphp
 
-            @if ($bookedSeatNumbersForDisplay && count($bookedSeatNumbersForDisplay) > 0)
+    {{-- Penumpang --}}
+    @php
+    $penumpang = collect($booking->selected_seat_numbers_json)->filter(fn($item) => $item['type'] === 'Dewasa')->values();
+@endphp
+
+@if ($penumpang->count() > 0)
+    <h3 class="text-lg font-bold mb-2">DATA PENUMPANG</h3>
+    <table class="w-full border-collapse border border-gray-300 text-sm">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="border p-2">No.</th>
+                <th class="border p-2">Nama</th>
+                <th class="border p-2">Kursi</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($penumpang as $i => $item)
+                <tr>
+                    <td class="border p-2">{{ $i + 1 }}</td>
+                    <td class="border p-2">{{ $booking->user->name ?? $item['name'] }}</td>
+                    <td class="border p-2">{{ $item['seat_number'] ?? '-' }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endif
+
+
+    {{-- Kamar VIP --}}
+    @if ($vip->count())
+        <h3>DETAIL KAMAR VIP</h3>
+        <table class="w-full border-collapse border border-gray-300 text-sm mb-4">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">No.</th>
+                    <th class="border p-2">Tipe Kamar</th>
+                    <th class="border p-2">Jumlah</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($vip as $i => $item)
+                    <tr>
+                        <td class="border p-2">{{ $i + 1 }}</td>
+                        <td class="border p-2">{{ $item['seat_type'] }}</td>
+                        <td class="border p-2">{{ $item['quantity'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    {{-- Kendaraan --}}
+    @if ($kendaraan->count())
+        <h3>DATA KENDARAAN</h3>
+        <table class="w-full border-collapse border border-gray-300 text-sm mb-4">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">No.</th>
+                    <th class="border p-2">Jenis Kendaraan</th>
+                    <th class="border p-2">Jumlah</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($kendaraan as $i => $item)
+                    <tr>
+                        <td class="border p-2">{{ $i + 1 }}</td>
+                        <td class="border p-2">{{ $item['seat_type'] }}</td>
+                        <td class="border p-2">{{ $item['quantity'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+@endif
+
+
+
+            {{-- @if ($bookedSeatNumbersForDisplay && count($bookedSeatNumbersForDisplay) > 0)
                 <h3>DATA PENUMPANG</h3>
                 <table>
                     <thead>
@@ -69,7 +153,6 @@
                         @foreach ($bookedSeatNumbersForDisplay as $index => $seatNumber)
                             <tr>
                                 <td>{{ $index + 1 }}</td>
-                                {{-- Again, passenger name needs to come from your data storage --}}
                                 <td>Penumpang {{ $index + 1 }}</td>
                                 <td>{{ $seatNumber }}</td>
                             </tr>
@@ -77,7 +160,7 @@
                     </tbody>
                 </table>
                 <hr>
-            @endif
+            @endif --}}
 
             {{-- If you have booking details with ticket types (e.g., VIP rooms), you'd loop them here --}}
             {{-- Example if using bookingDetails:

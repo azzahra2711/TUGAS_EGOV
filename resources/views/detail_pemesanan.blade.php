@@ -73,7 +73,7 @@
                                 Contohnya, jika Anda memiliki kolom 'passenger_name' di tabel booking_details
                                 atau menyimpannya di sessions/JSON pada Booking model.
                                 Untuk sementara, ini adalah placeholder. --}}
-                                <td>Penumpang {{ $index + 1 }}</td>
+                                <td>{{ $userName }}</td>
                                 <td>{{ $seatNumber }}</td>
                             </tr>
                         @empty
@@ -111,7 +111,7 @@
                     <tbody>
                         @foreach ($selectedFares as $index => $fare)
                             <tr>
-                                <td>{{ $index + 1 }}</td>
+                                <td>{{ $loop->iteration }}</td>
                                 <td>{{ $fare->seatType->name }}</td>
                                 <td>{{ $fare->selected_quantity }}</td>
                             </tr>

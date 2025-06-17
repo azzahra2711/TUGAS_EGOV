@@ -15,7 +15,11 @@ class Booking extends Model
         'booking_date',
         'total_amount',
         'status',
-        // 'selected_seat_numbers_json', // Potentially add this column (TEXT or JSON type) to store selected seat numbers for 'Penumpang' bookings
+        'selected_seat_numbers_json',
+    ];
+
+    protected $casts = [
+        'selected_seat_numbers_json' => 'array',
     ];
 
     // Relasi ke User
